@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { API_BASE_URL } from "@/config/api";
+import { API_BASE_URL} from "@/config/api";
 import axios from "axios";
 export default function Register() {
   const [errorApi, setErrorApi] = useState("");
@@ -15,7 +15,7 @@ export default function Register() {
     };
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/signup`, formData);
+      const response = await axios.post(`${API_BASE_URL}/api/signup`, formData);
       
       const data = response.data;
       if (data.message && !data.message.includes("Inscription réussie")) {

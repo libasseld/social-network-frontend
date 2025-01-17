@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { API_BASE_URL } from "@/config/api";
+import { API_BASE_URL} from "@/config/api";
 import axios from "axios";
 
 export default function Login() {
@@ -15,13 +15,13 @@ export default function Login() {
     };
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/signin`, formData);
+      const response = await axios.post(`${API_BASE_URL}/api/signin`, formData);
       
       const data = response.data;
       
       if (data.token) {
         // Stocker le token dans le localStorage
-        localStorage.setItem("token", data.token);
+        localStorage.setItem('social-network-token', data.token);
         window.location.href = "/";
         console.log("Connexion réussie et token stocké:", data.token);
       } else {
@@ -30,7 +30,10 @@ export default function Login() {
       }
       
     } catch (error) {
-      if (error.response) {
+      if (error.response.status === 429) {
+        setErrorApi("Trop de tentatives de connexion. Veuillez réessayer plus tard.");
+        console.error("Trop de tentatives de connexion");
+      } else if (error.response) {
         setErrorApi("Erreur de connexion : " + error.response.data.message);
         console.error("Erreur de connexion", error.response.data);
       } else {

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { API_BASE_URL } from "@/config/api";
+import { API_BASE_URL} from "@/config/api";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -10,10 +10,12 @@ export default function HomePage() {
     const [posts, setPosts] = useState([]);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [comments, setComments] = useState([]);
+    const [previewImage, setPreviewImage] = useState(null);
+    const [selectedFile, setSelectedFile] = useState(null);
 
     const getAuthHeaders = useCallback(() => ({
         headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('social-network-token')}`
         }
     }), []);
 
@@ -22,15 +24,16 @@ export default function HomePage() {
     }, []);
 
     const showPostComments = useCallback(async (postId) => {
+        setSelectedPostId(postId);
+
         try {
             const response = await axios.get(
-                `${API_BASE_URL}/posts/${postId}/comments`, 
+                `${API_BASE_URL}/api/posts/${postId}/comments`, 
                 getAuthHeaders()
             );
             
             if (response.status === 200) {
                 setComments(response.data.comments);
-                setSelectedPostId(postId);
                 toast.success('Commentaires chargés avec succès');
             }
         } catch (error) {
@@ -43,7 +46,7 @@ export default function HomePage() {
     const fetchPosts = useCallback(async () => {
         try {
             const response = await axios.get(
-                `${API_BASE_URL}/posts`, 
+                `${API_BASE_URL}/api/posts`, 
                 getAuthHeaders()
             );
 
@@ -69,7 +72,10 @@ export default function HomePage() {
                 method,
                 url: endpoint,
                 data: formData,
-                headers: getAuthHeaders().headers
+                headers: {
+                    ...getAuthHeaders().headers,
+                    'Content-Type': 'multipart/form-data'
+                }
             });
             if (response.status === 200 || response.status === 201) {
                 return true;
@@ -84,16 +90,21 @@ export default function HomePage() {
 
     const addPost = useCallback(async (e) => {
         e.preventDefault();
-        const formData = {
-            content: e.target.content.value,
-        };
-        const success = await handleSubmit(`${API_BASE_URL}/posts`, formData);
+        const formData = new FormData();
+        formData.append('content', e.target.content.value);
+        if (selectedFile) {
+            formData.append('image', selectedFile);
+        }
+        
+        const success = await handleSubmit(`${API_BASE_URL}/api/posts`, formData);
         if (success) {
             fetchPosts();
             e.target.reset();
+            setPreviewImage(null);
+            setSelectedFile(null);
             toast.success('Post publié avec succès');
         }
-    }, [handleSubmit, fetchPosts]);
+    }, [handleSubmit, fetchPosts, selectedFile]);
   
     const addComment = useCallback(async (e) => {
         e.preventDefault();
@@ -101,7 +112,7 @@ export default function HomePage() {
             content: e.target.content.value,
         };
         const success = await handleSubmit(
-            `${API_BASE_URL}/posts/${selectedPostId}/comments`, 
+            `${API_BASE_URL}/api/posts/${selectedPostId}/comments`, 
             formData
         );
         if (success) {
@@ -112,7 +123,7 @@ export default function HomePage() {
     }, [handleSubmit, selectedPostId, showPostComments]);
 
     const toggleLike = useCallback(async (postId) => {
-        const success = await handleSubmit(`${API_BASE_URL}/posts/${postId}/likes`, {});
+        const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}/likes`, {});
         if (success) {
             fetchPosts();
             toast.success('Like mis à jour avec succès');
@@ -121,7 +132,7 @@ export default function HomePage() {
 
     const deletePost = useCallback(async (postId) => {
         if (window.confirm('Êtes-vous sûr de vouloir supprimer ce post ?')) {
-            const success = await handleSubmit(`${API_BASE_URL}/posts/${postId}`, {}, 'delete');
+            const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}`, {}, 'delete');
             if (success) {
                 fetchPosts();
                 toast.success('Post supprimé avec succès');
@@ -131,7 +142,7 @@ export default function HomePage() {
 
     const deleteComment = useCallback(async (commentId) => {
         if (window.confirm('Êtes-vous sûr de vouloir supprimer ce commentaire ?')) {
-            const success = await handleSubmit(`${API_BASE_URL}/comments/${commentId}`, {}, 'delete');
+            const success = await handleSubmit(`${API_BASE_URL}/api/comments/${commentId}`, {}, 'delete');
             if (success) {
                 showPostComments(selectedPostId);
                 toast.success('Commentaire supprimé avec succès');
@@ -145,7 +156,7 @@ export default function HomePage() {
     }, []);
 
     const handleLogout = useCallback(() => {
-        localStorage.removeItem('token');
+        localStorage.removeItem('social-network-token');
         window.location.href = '/';
         toast.info('Déconnexion réussie');
     }, []);
@@ -175,6 +186,54 @@ export default function HomePage() {
                             placeholder="Quoi de neuf ?"
                         />
                     </div>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-center w-full">
+                            <label htmlFor="image-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                                    </svg>
+                                    <p className="mb-2 text-sm text-gray-500">Cliquez pour ajouter une image</p>
+                                </div>
+                                <input 
+                                    id="image-upload" 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) {
+                                            setSelectedFile(file);
+                                            const reader = new FileReader();
+                                            reader.onload = (e) => {
+                                                setPreviewImage(e.target.result);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                            </label>
+                        </div>
+                        {previewImage && (
+                            <div className="relative">
+                                <img 
+                                    src={previewImage} 
+                                    alt="Aperçu" 
+                                    className="max-h-48 rounded-lg mx-auto"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPreviewImage(null);
+                                        setSelectedFile(null);
+                                    }}
+                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex justify-end">
                         <button
                             type="submit"
@@ -203,6 +262,9 @@ export default function HomePage() {
                         </div>
                         <hr className="my-4" />
                         <p className="text-gray-700">{post.content}</p>
+                        {post.image && (
+                            <img src={`${API_BASE_URL}/storage/${post.image}`} alt="Post Image" className="max-h-96 object-contain w-full mt-4  mx-auto" />
+                        )}
                         <hr className="my-4" />
                         <div className="flex items-center space-x-4 text-gray-500">
                             <button 
