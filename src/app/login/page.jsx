@@ -1,13 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE_URL} from "@/config/api";
 import axios from "axios";
 
 export default function Login() {
   const [errorApi, setErrorApi] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Rediriger si déjà connecté
+    const token = localStorage.getItem('social-network-token');
+    if (token) {
+      router.push('/home');
+    }
+  }, [router]);
 
   const handleSubmit = async (e) => {
     setErrorApi("");
+    setIsLoading(true);
     e.preventDefault();
     const formData = {
       email: e.target.email.value,
@@ -15,31 +27,35 @@ export default function Login() {
     };
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/signin`, formData);
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, formData);
       
       const data = response.data;
       
       if (data.token) {
         // Stocker le token dans le localStorage
         localStorage.setItem('social-network-token', data.token);
-        window.location.href = "/";
-        console.log("Connexion réussie et token stocké:", data.token);
+        router.push("/home");
       } else {
         setErrorApi("Erreur: Token non reçu du serveur");
         console.error("Pas de token reçu");
       }
       
     } catch (error) {
-      if (error.response.status === 429) {
+      if (error.response?.status === 429) {
         setErrorApi("Trop de tentatives de connexion. Veuillez réessayer plus tard.");
         console.error("Trop de tentatives de connexion");
-      } else if (error.response) {
+      } else if (error.response?.data?.message) {
         setErrorApi("Erreur de connexion : " + error.response.data.message);
         console.error("Erreur de connexion", error.response.data);
-      } else {
+      } else if (error.code === 'ECONNREFUSED' || !error.response) {
         setErrorApi("Impossible de se connecter au serveur. Veuillez vérifier que le serveur est en cours d'exécution.");
         console.error("Erreur lors de la connexion:", error);
+      } else {
+        setErrorApi("Une erreur inattendue s'est produite.");
+        console.error("Erreur lors de la connexion:", error);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,9 +125,10 @@ export default function Login() {
           <div>
             <button
               type="submit"
-              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+              disabled={isLoading}
+              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Se connecter{" "}
+              {isLoading ? 'Connexion...' : 'Se connecter'}
             </button>
           </div>
         </form>

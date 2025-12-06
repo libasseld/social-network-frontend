@@ -1,12 +1,26 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE_URL} from "@/config/api";
 import axios from "axios";
+
 export default function Register() {
   const [errorApi, setErrorApi] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Rediriger si déjà connecté
+    const token = localStorage.getItem('social-network-token');
+    if (token) {
+      router.push('/home');
+    }
+  }, [router]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorApi("");
+    setIsLoading(true);
     const formData = {
       name: e.target.name.value,
       email: e.target.email.value,
@@ -15,16 +29,27 @@ export default function Register() {
     };
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/signup`, formData);
+      const response = await axios.post(`${API_BASE_URL}/api/auth/signup`, formData);
       
       const data = response.data;
       if (data.message && !data.message.includes("Inscription réussie")) {
         setErrorApi(data.message);
       } else {
-        window.location.href = '/login';
+        router.push('/login');
       }
     } catch (error) {
-      setErrorApi("Erreur lors de l'inscription : " + error.response.data.message);
+      if (error.response?.status === 429) {
+        setErrorApi("Trop de tentatives d'inscription. Veuillez réessayer plus tard.");
+      } else if (error.response?.data?.message) {
+        setErrorApi("Erreur lors de l'inscription : " + error.response.data.message);
+      } else if (error.code === 'ECONNREFUSED' || !error.response) {
+        setErrorApi("Impossible de se connecter au serveur. Veuillez vérifier que le serveur est en cours d'exécution.");
+      } else {
+        setErrorApi("Une erreur inattendue s'est produite.");
+      }
+      console.error("Erreur lors de l'inscription:", error);
+    } finally {
+      setIsLoading(false);
     }
   }
     return (
@@ -80,7 +105,13 @@ export default function Register() {
           </div>
     
           <div>
-            <button type="submit" className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Se connecter </button>
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm/6 font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Inscription...' : 'S\'inscrire'}
+            </button>
           </div>
         </form>
     

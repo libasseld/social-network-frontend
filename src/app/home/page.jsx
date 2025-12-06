@@ -4,6 +4,7 @@ import axios from "axios";
 import { API_BASE_URL} from "@/config/api";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function HomePage() {
     
@@ -12,6 +13,8 @@ export default function HomePage() {
     const [comments, setComments] = useState([]);
     const [previewImage, setPreviewImage] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const getAuthHeaders = useCallback(() => ({
         headers: {
@@ -33,8 +36,8 @@ export default function HomePage() {
             );
             
             if (response.status === 200) {
-                setComments(response.data.comments);
-                toast.success('Commentaires chargés avec succès');
+                // Le backend retourne directement un tableau de commentaires
+                setComments(Array.isArray(response.data) ? response.data : response.data.comments || []);
             }
         } catch (error) {
             console.error("Erreur lors de la récupération des commentaires", error);
@@ -44,6 +47,7 @@ export default function HomePage() {
     }, [getAuthHeaders, handleUnauthorized]);
 
     const fetchPosts = useCallback(async () => {
+        setIsLoading(true);
         try {
             const response = await axios.get(
                 `${API_BASE_URL}/api/posts`, 
@@ -51,14 +55,24 @@ export default function HomePage() {
             );
 
             if (response.status === 200) {
-                setPosts(response.data.posts);
-            } else if (response.data.message === "Unauthenticated.") {
+                // Le backend retourne directement un tableau de posts
+                setPosts(Array.isArray(response.data) ? response.data : response.data.posts || []);
+            } else if (response.data?.message === "Unauthenticated.") {
                 handleUnauthorized();
             }
         } catch (error) {
             console.error("Erreur lors de la récupération des posts", error);
-            toast.error('Erreur lors du chargement des posts');
-            if (error.response?.status === 401) handleUnauthorized();
+            if (error.response?.status === 401) {
+                handleUnauthorized();
+            } else if (error.response?.status === 429) {
+                toast.error('Trop de requêtes. Veuillez réessayer plus tard.');
+            } else if (error.code === 'ECONNREFUSED' || !error.response) {
+                toast.error('Impossible de se connecter au serveur. Vérifiez que le backend est en cours d\'exécution.');
+            } else {
+                toast.error('Erreur lors du chargement des posts');
+            }
+        } finally {
+            setIsLoading(false);
         }
     }, [getAuthHeaders, handleUnauthorized]);
 
@@ -68,14 +82,20 @@ export default function HomePage() {
 
     const handleSubmit = useCallback(async (endpoint, formData, method = 'post') => {
         try {
+            const headers = {
+                ...getAuthHeaders().headers
+            };
+            
+            // Ne pas définir Content-Type pour FormData, le navigateur le fera automatiquement
+            if (!(formData instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
+            
             const response = await axios({
                 method,
                 url: endpoint,
                 data: formData,
-                headers: {
-                    ...getAuthHeaders().headers,
-                    'Content-Type': 'multipart/form-data'
-                }
+                headers
             });
             if (response.status === 200 || response.status === 201) {
                 return true;
@@ -83,13 +103,24 @@ export default function HomePage() {
             return false;
         } catch (error) {
             console.error("Erreur lors de la soumission", error);
-            toast.error('Erreur lors de l\'opération');
+            if (error.response?.status === 401) {
+                handleUnauthorized();
+            } else if (error.response?.status === 429) {
+                toast.error('Trop de requêtes. Veuillez réessayer plus tard.');
+            } else if (error.response?.data?.message) {
+                toast.error(error.response.data.message);
+            } else if (error.code === 'ECONNREFUSED' || !error.response) {
+                toast.error('Impossible de se connecter au serveur.');
+            } else {
+                toast.error('Erreur lors de l\'opération');
+            }
             return false;
         }
-    }, [getAuthHeaders]);
+    }, [getAuthHeaders, handleUnauthorized]);
 
     const addPost = useCallback(async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
         const formData = new FormData();
         formData.append('content', e.target.content.value);
         if (selectedFile) {
@@ -98,12 +129,13 @@ export default function HomePage() {
         
         const success = await handleSubmit(`${API_BASE_URL}/api/posts`, formData);
         if (success) {
-            fetchPosts();
+            await fetchPosts();
             e.target.reset();
             setPreviewImage(null);
             setSelectedFile(null);
             toast.success('Post publié avec succès');
         }
+        setIsSubmitting(false);
     }, [handleSubmit, fetchPosts, selectedFile]);
   
     const addComment = useCallback(async (e) => {
@@ -123,12 +155,16 @@ export default function HomePage() {
     }, [handleSubmit, selectedPostId, showPostComments]);
 
     const toggleLike = useCallback(async (postId) => {
-        const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}/likes`, {});
-        if (success) {
-            fetchPosts();
-            toast.success('Like mis à jour avec succès');
-        }
-    }, [handleSubmit, fetchPosts]);
+        // Note: La route pour les likes n'existe pas encore dans le backend
+        // Cette fonctionnalité sera désactivée jusqu'à ce que la route soit créée
+        toast.info('La fonctionnalité de like n\'est pas encore disponible côté backend');
+        // TODO: Implémenter la route /api/posts/{postId}/likes dans le backend
+        // const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}/likes`, {});
+        // if (success) {
+        //     await fetchPosts();
+        //     toast.success('Like mis à jour avec succès');
+        // }
+    }, []);
 
     const deletePost = useCallback(async (postId) => {
         if (window.confirm('Êtes-vous sûr de vouloir supprimer ce post ?')) {
@@ -162,17 +198,18 @@ export default function HomePage() {
     }, []);
 
     return (
-        <div className="max-w-5xl mx-auto p-8 bg-gray-100">
-            <ToastContainer position="top-right" autoClose={3000} />
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-indigo-600">EPPF SOCIAL</h1>
-                <button 
-                    onClick={handleLogout}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                    Déconnexion
-                </button>
-            </div>
+        <ProtectedRoute>
+            <div className="max-w-5xl mx-auto p-8 bg-gray-100 min-h-screen">
+                <ToastContainer position="top-right" autoClose={3000} />
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-bold text-indigo-600">EPF SOCIAL</h1>
+                    <button 
+                        onClick={handleLogout}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                        Déconnexion
+                    </button>
+                </div>
 
             <div className="mb-8 bg-white rounded-lg shadow p-6">
                 <form className="space-y-4" onSubmit={addPost}>
@@ -237,19 +274,32 @@ export default function HomePage() {
                     <div className="flex justify-end">
                         <button
                             type="submit"
-                            className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            disabled={isSubmitting}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Publier
+                            {isSubmitting ? 'Publication...' : 'Publier'}
                         </button>
                     </div>
                 </form>
             </div>
 
-            <div className="space-y-6">
-                {posts?.map((post) => (
-                    <div key={post.id} className="bg-white rounded-lg shadow p-6">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold">{post.user.name}</h2>
+            {isLoading ? (
+                <div className="flex justify-center items-center py-12">
+                    <div className="text-center">
+                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
+                        <p className="mt-4 text-gray-600">Chargement des posts...</p>
+                    </div>
+                </div>
+            ) : posts.length === 0 ? (
+                <div className="bg-white rounded-lg shadow p-6 text-center">
+                    <p className="text-gray-500">Aucun post pour le moment. Soyez le premier à publier !</p>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {posts.map((post) => (
+                        <div key={post.id} className="bg-white rounded-lg shadow p-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-bold">{post.author?.name || post.user?.name || 'Utilisateur inconnu'}</h2>
                             <div className="flex items-center gap-4">
                                 <p className="text-gray-500">{post.created_at}</p>
                                 <button 
@@ -262,8 +312,8 @@ export default function HomePage() {
                         </div>
                         <hr className="my-4" />
                         <p className="text-gray-700">{post.content}</p>
-                        {post.image && (
-                            <img src={`${API_BASE_URL}/storage/${post.image}`} alt="Post Image" className="max-h-96 object-contain w-full mt-4  mx-auto" />
+                        {post.image_url && (
+                            <img src={post.image_url} alt="Post Image" className="max-h-96 object-contain w-full mt-4 mx-auto rounded-lg" />
                         )}
                         <hr className="my-4" />
                         <div className="flex items-center space-x-4 text-gray-500">
@@ -286,7 +336,8 @@ export default function HomePage() {
                         </div>
                     </div>
                 ))}
-            </div>
+                </div>
+            )}
 
             {selectedPostId && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -342,6 +393,7 @@ export default function HomePage() {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </ProtectedRoute>
     );
 }
