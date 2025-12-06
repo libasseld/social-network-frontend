@@ -158,12 +158,11 @@ export default function HomePage() {
         // Note: La route pour les likes n'existe pas encore dans le backend
         // Cette fonctionnalité sera désactivée jusqu'à ce que la route soit créée
         toast.info('La fonctionnalité de like n\'est pas encore disponible côté backend');
-        // TODO: Implémenter la route /api/posts/{postId}/likes dans le backend
-        // const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}/likes`, {});
-        // if (success) {
-        //     await fetchPosts();
-        //     toast.success('Like mis à jour avec succès');
-        // }
+        const success = await handleSubmit(`${API_BASE_URL}/api/posts/${postId}/likes`, {});
+         if (success) {
+             await fetchPosts();
+             toast.success('Like mis à jour avec succès');
+         }
     }, []);
 
     const deletePost = useCallback(async (postId) => {
