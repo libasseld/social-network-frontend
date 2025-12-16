@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .codegpt
+README-Postman.md
+Social-Network-API.postman_collection.json
+Social-Network-API.postman_environment.json

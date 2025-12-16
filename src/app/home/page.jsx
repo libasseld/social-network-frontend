@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { API_BASE_URL} from "@/config/api";
 import { toast, ToastContainer } from 'react-toastify';
@@ -7,7 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function HomePage() {
-    
+    const router = useRouter();
     const [posts, setPosts] = useState([]);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [comments, setComments] = useState([]);
@@ -15,6 +16,7 @@ export default function HomePage() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const getAuthHeaders = useCallback(() => ({
         headers: {
@@ -196,6 +198,14 @@ export default function HomePage() {
         toast.info('Déconnexion réussie');
     }, []);
 
+    const handleSearch = (e) => {
+        e.preventDefault();
+        const query = searchQuery.trim();
+        if (query) {
+            router.push(`/search?q=${encodeURIComponent(query)}`);
+        }
+    };
+
     return (
         <ProtectedRoute>
             <div className="max-w-5xl mx-auto p-8 bg-gray-100 min-h-screen">
@@ -208,6 +218,24 @@ export default function HomePage() {
                     >
                         Déconnexion
                     </button>
+                </div>
+
+                <div className="mb-8 bg-white rounded-lg shadow p-6">
+                    <form onSubmit={handleSearch} className="flex gap-2">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Rechercher des posts, utilisateurs..."
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                        <button
+                            type="submit"
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                            🔍 Rechercher
+                        </button>
+                    </form>
                 </div>
 
             <div className="mb-8 bg-white rounded-lg shadow p-6">
